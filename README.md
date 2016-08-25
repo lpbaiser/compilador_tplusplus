@@ -1,2 +1,2 @@
-# compilador_t-
+# Compilador t++
 Compilador para linguagem t++ 
