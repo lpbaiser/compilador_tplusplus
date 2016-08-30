@@ -1,4 +1,12 @@
+# -*- coding: utf-8 -*-
+#-------------------------------------------------------------------------
+# lexer.py
+# Analisador léxico para a linguagem t++
+# Autor: Leonardo Pontes Baiser
+#-------------------------------------------------------------------------
+
 import ply.lex as lex
+import sys
 
 class Lexer:
 
@@ -67,7 +75,11 @@ class Lexer:
 
 
 if __name__ == '__main__':
-	from sys import argv
-	lexer = Lexer()
-	f = open(argv[1])
-	lexer.test(f.read())    		
+	if len(sys.argv) >= 2:
+		lexer = Lexer()	
+		f = open(sys.argv[1])
+		lexer.test(f.read())    		
+	else:
+		# print ('Erro')
+		sys.stderr.write('Usage: python3 lexer.py example.tpp \n')
+		sys.exit(1)
