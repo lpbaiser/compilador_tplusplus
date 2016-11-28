@@ -1,10 +1,18 @@
+inteiro: k
+inteiro: j
+{inteiro: n}
+flutuante: leo
 
-inteiro: n
+flutuante teste(inteiro: t, flutuante: a)
+fim
 
-inteiro fatorial(inteiro: n)
+flutuante fatorial(inteiro: n)
 	inteiro: fat
+	flutuante: leo
+	fat := leo
 	se n > 0 então {não calcula se n > 0}
-		fat := 1
+		fat := -1+2
+		k := 2
 		repita
 			fat := fat * n
 			n := n - 1
@@ -14,7 +22,12 @@ inteiro fatorial(inteiro: n)
 		retorna(0)
 	fim
 fim
-principal()
+
+flutuante principal()
+	inteiro: n
+	inteiro: t
+	inteiro: a
 	leia(n)
+	fatorial(n)
 	escreva(fatorial(n))
 fim
