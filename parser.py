@@ -10,10 +10,11 @@ from lexer import Lexer
 
 class Tree:
 
-    def __init__(self, type_node, child=[], value=" "):
+    def __init__(self, type_node, child=[], value=" ", line=""):
         self.type = type_node
         self.child = child
         self.value = value
+        self.line = line
 
     def __str__(self, level=0):
         # ret = "|"*level+repr(self.type)+"\n"
@@ -24,8 +25,8 @@ class Tree:
 class Parser:
 
     def __init__(self, code):
-        lex = Lexer()
-        self.tokens = lex.tokens
+        self.lex = Lexer()
+        self.tokens = self.lex.tokens
         self.precedence = (
             ('left', 'EQ', 'MAIOR_EQ', 'MAIOR', 'MENOR_EQ', 'MENOR'),
             ('left', 'ADD', 'SUB'),
@@ -33,6 +34,8 @@ class Parser:
         )
         parser = yacc.yacc(debug=False, module=self, optimize=False)
         self.ast = parser.parse(code)
+        # print (lex.keywords)
+        # self.lexer = lex.t_error(lex)
 
     def p_top_1(self, p):
         '''
@@ -106,38 +109,69 @@ class Parser:
 
     def p_expressao(self, p):
         '''
-        expressao : expressao_binaria
-                  | chamada
+        expressao : expressao_calculo
                   | expressao_unaria
                   | expressao_numerica
                   | expressao_identificador
                   | expressao_parenteses
+                  | chamada
         '''
         p[0] = Tree('expressao', [p[1]])
 
+
     def p_expressao_binaria(self, p):
         '''
-        expressao_binaria : expressao EQ expressao
-                          | expressao MAIOR_EQ expressao
-                          | expressao MAIOR expressao
-                          | expressao MENOR_EQ expressao
-                          | expressao MENOR expressao
-                          | expressao ADD expressao
+        expressao_binaria : expressao_binaria_com_parenteses
+                          | expressao_binaria_sem_parenteses
+        '''
+        p[0] = Tree('expressao_binaria', [p[1]])
+
+    def p_expressao_binaria_sem_parenteses(self, p):
+        '''
+        expressao_binaria_sem_parenteses : expressao EQ expressao
+                                         | expressao MAIOR_EQ expressao
+                                         | expressao MAIOR expressao
+                                         | expressao MENOR_EQ expressao
+                                         | expressao MENOR expressao
+        '''
+        p[0] = Tree('expressao_binaria_sem_parenteses', [p[1], p[3]], p[2])
+
+    def p_expressao_binaria_com_parenteses(self, p):
+        '''
+        expressao_binaria_com_parenteses : LPAR expressao_binaria RPAR
+        '''
+        p[0] = Tree('expressao_binaria_com_parenteses', [p[2]])
+
+    def p_expressao_calculo(self, p):
+        '''
+        expressao_calculo : expressao ADD expressao
                           | expressao SUB expressao
                           | expressao MUL expressao
                           | expressao DIV expressao
         '''
-        p[0] = Tree('expressao_binaria', [p[1], p[3]], p[2])
+        p[0] = Tree('expressao_calculo', [p[1], p[3]], p[2])
 
     def p_expressao_unaria(self, p):
-        'expressao_unaria : SUB expressao'
+        '''
+        expressao_unaria : SUB expressao
+                         | ADD expressao
+        '''
         p[0] = Tree('expressao_unaria', [p[2]])
 
     def p_expressao_numerica(self, p):
         '''
-        expressao_numerica : NUM
+        expressao_numerica : inteiro
+                           | flutuante
         '''
-        p[0] = Tree('expressao_numerica', [], p[1])
+        p[0] = Tree('expressao_numerica', [p[1]])
+
+    def p_inteiro(self,p):
+        'inteiro : NUM_INTEIRO'
+        p[0] = Tree('num_inteiro', value=p[1])
+
+    def p_flutuante(self, p):
+        'flutuante : NUM_FLUTUANTE'
+        p[0] = Tree('num_flutuante',value=p[1])
 
     def p_expressao_identificador(self, p):
         '''
@@ -165,18 +199,18 @@ class Parser:
 
     def p_condicional_1(self, p):
         '''
-        condicional : SE expressao ENTAO corpo FIM
+        condicional : SE expressao_binaria ENTAO corpo FIM
         '''
         p[0] = Tree('condicional', [p[2], p[4]])
 
     def p_condicional_2(self, p):
         '''
-        condicional : SE expressao ENTAO corpo SENAO corpo FIM
+        condicional : SE expressao_binaria ENTAO corpo SENAO corpo FIM
         '''
         p[0] = Tree('condicional', [p[2], p[4], p[6]])
 
     def p_repeticao(self, p):
-        'repeticao : REPITA corpo ATE expressao' 
+        'repeticao : REPITA corpo ATE expressao_binaria' 
         p[0] = Tree('repeticao', [p[2], p[4]])
 
     
@@ -230,7 +264,7 @@ class Parser:
 
 def print_tree(node, level="-"):
     if node != None:
-        print("%s %s %s" %(level, node.type, node.value))
+        print("%s %s %s %s" %(level, node.type, node.value, node.line))
         for son in node.child:
             print_tree(son, level+"-")
 

@@ -1,0 +1,22 @@
+2. passagem de parâmetros. Consegui mandar inteiro no lugar de flutuante
+2.1 consegui mandar flutuante no lugar de inteiro
+
+3. função não utilizada não dá warnig. OK
+
+4. consegui atribuir inteiro a um flutuante no retorno de função
+4.1 consegui atribuir flutuante a um inteiro no retorno de função
+4.2 também se aplica a condição
+4.3 também se aplica ao repita
+
+5. expressões com chamada de função não geram warning coerção de tipo para inteiro. teste(t, a) + 1
+5.1 flutuante também não
+
+6. erro não interrompe a compilação. variável não declarada. OK
+
+7. variável, atribuída mas não declarada não está genrando erro
+
+8. variável utilizada sem haver sido inicialidada do escopo global
+8.1 também ocorre em declaração recursiva
+
+9. sintática não está permitindo compilar programa vazio
+

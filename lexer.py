@@ -27,7 +27,7 @@ class Lexer:
     }
 
     tokens = ['ADD', 'SUB', 'MUL', 'DIV', 'EQ', 'COMMA', 'ATR', 'MENOR', 'MAIOR',
-                'MENOR_EQ', 'MAIOR_EQ', 'LPAR', 'RPAR', 'COLON', 'ID', 'NUM'] + list(keywords.values())
+                'MENOR_EQ', 'MAIOR_EQ', 'LPAR', 'RPAR', 'COLON', 'ID', 'NUM_INTEIRO', 'NUM_FLUTUANTE'] + list(keywords.values())
 
     t_ADD = r'\+'
     t_SUB = r'\-'
@@ -43,7 +43,8 @@ class Lexer:
     t_LPAR = r'\('
     t_RPAR = r'\)'
     t_COLON = r':'
-    t_NUM = r'([0-9]+(\.[0-9]+)?e(\+|\-)?[0-9]+(\.[0-9]+)?)|([0-9]+(\.[0-9]+)?)'
+    t_NUM_INTEIRO = r'(\d+)'
+    t_NUM_FLUTUANTE = r'(\d+(\.\d+)|\d+(\.\d+)?e(\+|\-)?\d+(\.\d+)?)'
 
     def t_ID(self, t):
         r'[a-zA-Zá-ñÁ-Ñà-źÀ-Ź][a-zA-Zá-ñÁ-Ñà-źÀ-Ź0-9]*'
@@ -52,7 +53,6 @@ class Lexer:
 
     def t_COMMENT(self, t):
         r'\{(.|\s)*?\}'
-        # r'\{((.)|(\n))*\}'
 
     def t_NEWLINE(self, t):
         r'\n+'
@@ -64,13 +64,14 @@ class Lexer:
         print("Item ilegal: '%s', linha %d, coluna %d" % (t.value[0],t.lineno, t.lexpos))
         t.lexer.skip(1)
 
+
     def test(self, code):
         lex.input(code)
         while True:
-            t = lex.token()
-            if not t:
+            tk = lex.token()
+            if not tk:
                 break
-            print(t)
+            print(tk)
 
 
 if __name__ == '__main__':

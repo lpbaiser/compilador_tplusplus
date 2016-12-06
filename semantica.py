@@ -5,17 +5,25 @@
 #-------------------------------------------------------------------------
 
 from parser import Parser
+from ply import yacc
+import pprint
 
 
 class Semantica():
 
     def __init__(self, code):
+        self.parser = Parser(code)
         self.table = {}
         self.scope = "global"
-        self.tree = Parser(code).ast  
+        self.tree = self.parser.ast  
         self.top(self.tree)
+        self.verifica_variaveis_nao_utilizadas(self.table)
+        self.verifica_funcao_principal(self.table)
+        self.verifica_funcoes_nao_utilizadas(self.table)
+        # print(self.parser.lex.t_error(self.parser.lex.test(code))
 
     def top(self, node):
+
         if len(node.child) == 1:
             self.procedimento(node.child[0])
         else:
@@ -23,7 +31,6 @@ class Semantica():
             self.procedimento(node.child[1])
 
     def procedimento(self, node):
-        # print (node.child[0].type)
         if (node.child[0].type == "declaracao"):
             self.declaracao(node.child[0])
         if (node.child[0].type == "funcao"):
@@ -32,115 +39,104 @@ class Semantica():
             self.scope = "global"
 
     def declaracao(self, node):
-        # print (node.value)
-        tipo = str(node.child[0])
-        # print (self.scope)
+        tipo = node.child[0].type
         if self.scope+"@"+node.value in self.table.keys():
             print("Warning. Variavel '"+node.value + "' já declarada")
-            
+            exit(1)
 
         if node.value in self.table.keys():
-            print("Erro Semantico. '"+node.value + "' é um procedimento," +
+            print("Erro Semântico. '"+node.value + "' é um procedimento," +
                   " não pode criar variaveis com o mesmo nodeme do procedimento")
             exit(1)
-        # print (node.type)
-        # self.scope = node.value
-        self.table[self.scope+"@"+node.value] = [str(node.value), "variavel", 0, 0, tipo]#nome variavel, classe, delc(T/F), 0, tipo
-        # self.scope = "global"
-        
-        # print (self.table[self.scope+"@"+node.value][2])
+                                                #classe, nome variavel, utilizada, atribuida, tipo
+        self.table[self.scope+"@"+node.value] = ["variavel", node.value, False, False, tipo]
 
     def funcao(self, node):
         self.prototipo(node.child[0])
         self.corpo(node.child[1])
 
     def prototipo(self, node):
-
-        tipo = node.child[0]
+        tipo = node.child[0].type
         nome_func = node.value
-        # self.scope = nome_func
         if nome_func in self.table.keys():
-            print("Erro Semantico. Procedimento '"+nome_func + "' já declarado")
+            print("Erro Semântico. Procedimento '"+nome_func + "' já declarado")
             exit(1)
-        argumentos = self.get_tipos_argumentos(node.child[1])
-        self.table[nome_func] = ['funcao', argumentos]
-        self.declaracao_args(node.child[1])
-        # self.scope = "global"
+                                #classe, nome_func, argumentos, utilizada, tipo
+        argumentos = self.declaracao_args(node.child[1])
+        self.table[nome_func] = ['funcao', nome_func, argumentos, False, tipo]
 
     def declaracao_args(self, node):
         if node == None:
-            return
-        self.declaracao(node.child[0])
-        if len(node.child) > 1:
-            self.declaracao_args(node.child[1])
-
-    def get_tipos_argumentos(self, node):
-        if node == None:
             return []
-        tipos = []
-        qtde_paramentros = len(node.child)
-        if (len(node.child) > 0):
-            tipo = str(node.child[0].child[0])
-            tipos.append(tipo)
-            nome_variavel = str(node.child[0].value)
-            if (len(node.child) > 1):
-                tipos = tipos+self.get_tipos_argumentos(node.child[1])
-        return tipos
+        else:
+            tipo_args = []
+            nome = self.scope+"@"+node.child[0].value
+            tipo = node.child[0].child[0].type
+                               #classe, nome, utilizada, tipo, escopo
+            self.table[nome] = ["parametro", node.child[0].value, False, self.scope, tipo]
+            tipo_args.append(tipo)
+            if len(node.child) == 2:
+                tipo_args = tipo_args + self.declaracao_args(node.child[1])
+            return tipo_args
+
 
     def corpo(self, node):
         if node == None:
             return
-        self.composicao(node.child[0])
-        if len(node.child) > 1:
+        elif len(node.child) == 1:
+            self.composicao(node.child[0])
+        elif len(node.child) == 2:
+            self.composicao(node.child[0])
             self.corpo(node.child[1])
 
     def composicao(self, node):
         comp = node.child[0].type
-        # print (comp)
         if (comp == "atribuicao"):
             self.atribuicao(node.child[0])
-        if (comp == "declaracao"):
+        elif (comp == "declaracao"):
             self.declaracao(node.child[0])
-        if (comp == "chamada"):
+        elif (comp == "chamada"):
             self.chamada(node.child[0])
-        if (comp == "condicional"):
+        elif (comp == "condicional"):
             self.condicional(node.child[0])
-        if (comp == "repeticao"):
+        elif (comp == "repeticao"):
             self.repeticao(node.child[0])
-        if (comp == "retorna"):
+        elif (comp == "retorna"):
             self.retorna(node.child[0])
-        if (comp == "leia"):
+        elif (comp == "leia"):
             self.leia(node.child[0])
-        if (comp == "escreva"):
+        elif (comp == "escreva"):
             self.escreva(node.child[0])
        
     def atribuicao(self, node):
-        self.expressao(node.child[0])
-        self.set_decl_variavel(node.value)
-        if self.variavel_is_declarada(node.child[0].child[0].value):
-            self.set_decl_variavel(node.child[0].child[0].value)
-            tipo_var1 = self.table[self.scope+"@"+node.value][4]
-            if (self.scope+"@"+node.child[0].child[0].value in self.table.keys()):
-                tipo_var2 = self.table[self.scope+"@"+node.child[0].child[0].value][4]
-            elif ("global"+"@"+node.child[0].child[0].value in self.table.keys()):
-                tipo_var2 = self.table["global"+"@"+node.child[0].child[0].value][4]
-            if (tipo_var1 == "inteiro" and tipo_var2 == "flutuante"):
-                print ("Warning Semantico. Coerção implícita de tipos (inteiro<->flutuante)")
+        nome = self.scope+"@"+node.value
+        if nome not in self.table.keys():
+            nome = "global@"+node.value
+            if nome not in self.table.keys():
+                print ("Erro Semântico. Variavel '" + node.value + "' não declarada ")
+                exit(1)
+        tipo = self.table[nome][4]
+        tipo_exp = self.expressao(node.child[0])
+        self.table[nome][2] = True
+        self.table[nome][3] = True
+        if (tipo != tipo_exp):
+            print ("Warning Semântico. Coerção implícita de tipos (inteiro<->flutuante) -  atribuicao")
 
     def condicional(self, node):
-        # print(node.child[1])
-        self.expressao(node.child[0])
+        self.expressao_binaria(node.child[0])
         self.corpo(node.child[1])
         if len(node.child) == 3:
-            # print(node.child[2])
             self.corpo(node.child[2])
 
     def repeticao(self, node):
         self.corpo(node.child[0])
-        self.expressao(node.child[1])
+        self.expressao_binaria(node.child[1])
 
     def retorna(self, node):
-        self.expressao(node.child[0])
+        tipo_expressao = self.expressao(node.child[0])
+        tipo_esperado = self.table[self.scope][4]
+        if tipo_esperado != tipo_expressao:
+            print("Warning Semântico. Coerção implícita de tipos. É esperado: "+tipo_esperado+". Tipo recebido: "+tipo_expressao)
 
     def leia(self, node):
         self.expressao(node.child[0])
@@ -149,101 +145,141 @@ class Semantica():
         self.expressao(node.child[0])
 
     def expressao(self, node):
-        # print(node.child[0].type)
         exp = node.child[0].type  
-        if (exp == "expressao"):
-            self.expressao(node.child[1])
-        if (exp == "expressao_binaria"):
-            self.expressao_binaria(node.child[0])
-        if (exp == "chamada"):
-            self.chamada(node.child[0])
-        if (exp == "expressao_unaria"):
-            self.expressao_unaria(node.child[0])
-        if (node.child[0] == "expressao_numerica"):
-            pass
-        if (exp == "expressao_identificador"):
-            self.expressao_identificador(node.child[0])
-        if (exp == "expressao_parenteses"):
-            self.expressao_parenteses(node.child[0])
+        if (exp == "expressao_calculo"):
+           return self.expressao_calculo(node.child[0])
+        elif (exp == "chamada"):
+            return self.chamada(node.child[0])
+        elif (exp == "expressao_unaria"):
+            return self.expressao_unaria(node.child[0])
+        elif (exp == "expressao_numerica"):
+            # print (node.child[0].child[0].value)
+            return self.expressao_numerica(node.child[0])
+        elif (exp == "expressao_identificador"):
+            return self.expressao_identificador(node.child[0])
+        elif (exp == "expressao_parenteses"):
+            return self.expressao_parenteses(node.child[0])
+
+    def expressao_calculo(self, node):
+        tipo1 = self.expressao(node.child[0])
+        tipo2 = self.expressao(node.child[1])
+        if (tipo1 != tipo2):
+            print ("Warning Semântico. Comparação entre '"+tipo1+"' e '" + tipo2+"'")
+        if (tipo1 == "flutuante" or tipo2 == "flutuante"):
+            return "flutuante"
+        else:
+            return tipo1
 
     def expressao_binaria(self, node):
-        self.expressao(node.child[0])
-        self.expressao(node.child[1])
+        exp = node.child[0].type
+        if (exp == "expressao_binaria_com_parenteses"):
+            return self.expressao_binaria_com_parenteses(node.child[0])
+        elif (exp == "expressao_binaria_sem_parenteses"):
+            return self.expressao_binaria_sem_parenteses(node.child[0])
+   
+    def expressao_binaria_com_parenteses(self, node):
+        self.expressao_binaria(node.child[0])
+
+    def expressao_binaria_sem_parenteses(self, node):
+        tipo1 = self.expressao(node.child[0])
+        tipo2 = self.expressao(node.child[1])
+        if (tipo1 != tipo2):
+            print ("Warning Semântico. Comparação entre '"+tipo1+"' e '" + tipo2+"'")
+        if (tipo1 == "flutuante" or tipo2 == "flutuante"):
+            return "flutuante"
+        else:
+            return tipo1
+
+    def expressao_numerica(self, node):
+        if (node.child[0].type == "num_inteiro"):
+            return "inteiro"
+        elif (node.child[0].type == "num_flutuante"):
+            return "flutuante"
 
     def expressao_unaria(self, node):
         self.expressao(node.child[0])
 
     def expressao_identificador(self, node):
-        if self.variavel_is_declarada(node.value) == False:
-            print ("Erro Semantico. Variavel '" + node.value + "' não declarada ")
-            # exit(1)
+        nome = self.scope+"@"+node.value
+        if nome not in self.table.keys():
+            nome = "global@"+node.value
+            if nome not in self.table.keys():
+                print ("Erro Semântico. Variavel '" + node.value + "' não declarada")
+                exit(1)
+        if self.table[nome][3] == False:
+            print ("Erro Semântico. Variavel '" + node.value + "' não inicializada")
+            exit(1)
+        self.table[nome][2] = True
+        return self.table[nome][4]
+
 
     def expressao_parenteses(self, node):
         self.expressao(node.child[0])
 
     def chamada(self, node):
         if node.value not in self.table.keys():
-            print ("Erro Semantico. Função '" + node.value + "' não declarada")
+            print ("Erro Semântico. Função '" + node.value + "' não declarada")
             exit(1)
-        self.expressao_args(node.child[0])
-        qtde_parametros = self.lista_qtde_parametros(node.child[0])
-        if len(self.table[node.value][1]) != qtde_parametros:
-            print ("Erro Semantico. Numero de parametros passados '" + str(qtde_parametros) +
+        argumentos = self.expressao_args(node.child[0])
+        parametros_esperados = self.table[node.value][2]
+
+        if len(argumentos) != len(parametros_esperados):
+            print ("Erro Semântico. Numero de parametros passados '" + str(qtde_parametros) +
              "', numero de parametros esperado '" + str(len(self.table[node.value][1])))
             exit(1)
 
-        self.set_uso_variavel_chamada(node.child[0])
-
-    def set_uso_variavel_chamada(self, node):
-        if len(node.child) > 1:
-            self.set_decl_variavel(node.child[0].child[0].value)
-            self.set_uso_variavel_chamada(node.child[1])
-        elif len(node.child) == 1:
-            self.set_decl_variavel(node.child[0].child[0].value)
-
+        for i in range(len(parametros_esperados)):
+            if (argumentos[i] != parametros_esperados[i]):
+                print ("Erro Semântico, Argumentos esperados pela função '" + node.value+"': '" + str(parametros_esperados)+"' - Recebido: " + str(argumentos))
+                exit(1)
+        self.table[node.value][3] = True
+        return self.table[node.value][4]
 
     def expressao_args(self, node):
         if node == None:
             return []
-        self.expressao(node.child[0])
-        if len(node.child) > 1:
-            self.expressao_args(node.child[1])
-
-    def lista_qtde_parametros(self, node):
-        if len(node.child) > 1:
-            return self.lista_qtde_parametros(node.child[1])+1
-        elif len(node.child) == 1:
-            return 1
         else:
-            return 0
+            tipo_args = []
+            tipo_arg = self.expressao(node.child[0])
+            tipo_args.append(tipo_arg)
+            if len(node.child) == 2:
+                tipo_args = tipo_args + self.expressao_args(node.child[1])
+            return tipo_args
 
     def variavel_is_declarada(self, variavel):
-        if self.scope+"@"+variavel in self.table.keys():
-            return True
-        elif 'global'+"@"+variavel in self.table.keys():
-            return True
-        return False
+        if self.scope+"@"+variavel not in self.table.keys():
+            if 'global'+"@"+variavel not in self.table.keys():
+                return False
+        return True
 
     def set_decl_variavel(self, variavel):
         if self.scope+"@"+variavel in self.table.keys():
-            self.table[self.scope+"@"+variavel][2] = 1
+            self.table[self.scope+"@"+variavel][2] = True
         if "global"+"@"+variavel in self.table.keys(): 
-            self.table["global"+"@"+variavel][2] = 1
+            self.table["global"+"@"+variavel][2] = True
 
 
-def verifica_variaveis_nao_utilizadas(table):
-    for (k,v) in table.items():
-        if (v[1] == "variavel"):
-            if (v[2] == 0):
-                scope = k.split("@")
-                if (scope[0] != "global"):
-                    print("Warning. Variavel '"+v[0] + "' da função '" + scope[0] +"' nunca é utilizada")
-                else:
-                    print("Warning. Variavel '"+v[0] + "' nunca é utilizada")
+    def verifica_variaveis_nao_utilizadas(self, table):
+        for (k,v) in table.items():
+            if (v[0] == "variavel"):
+                if (v[2] == False):
+                    scope = k.split("@")
+                    if (scope[0] != "global"):
+                        print("Warning. Variavel '"+v[1] + "' da função '" + scope[0] +"' nunca é utilizada")
+                    else:
+                        print("Warning. Variavel '"+v[1] + "' nunca é utilizada")
 
-def verifica_funcao_principal(table):
-    if ("principal" not in table.keys()):
-        print ("Warning. Função \"principal()\" não declarada")
+    def verifica_funcoes_nao_utilizadas(self, table):
+        for (k,v) in table.items():
+            if (v[0] == "funcao" and k != "principal"):
+                if (v[3] == False):
+                    print("Warning. Função '"+k+ "' nunca é utilizada'")
+
+        
+
+    def verifica_funcao_principal(self, table):
+        if ("principal" not in table.keys()):
+            print ("Warning. Função \"principal()\" não declarada")
 
 def print_tree(node, level="-"):
     if node != None:
@@ -251,12 +287,19 @@ def print_tree(node, level="-"):
         for son in node.child:
             print_tree(son, level+"-")
 
+def print_funcoes(table):
+    for (k,v) in table.items():
+        if (v[0] == "funcao"):
+            print(v)
+
 if __name__ == '__main__':
     import sys
     code = open(sys.argv[1])
     s = Semantica(code.read())
 
     # print_tree(s.tree)
-    verifica_variaveis_nao_utilizadas(s.table)
-    verifica_funcao_principal(s.table)
-    print("Tabela de Simbolos:", s.table)
+    # print (s.parser.tokens)
+
+    # print("Tabela de Simbolos:", s.table)
+    # print_funcoes(s.table)
+    pprint.pprint(s.table, depth=3, width=500)
