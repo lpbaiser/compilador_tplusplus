@@ -156,7 +156,7 @@ class Parser:
         expressao_unaria : SUB expressao
                          | ADD expressao
         '''
-        p[0] = Tree('expressao_unaria', [p[2]])
+        p[0] = Tree('expressao_unaria', [p[2]], value=p[1])
 
     def p_expressao_numerica(self, p):
         '''

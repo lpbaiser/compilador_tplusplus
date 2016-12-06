@@ -49,7 +49,7 @@ class Semantica():
                   " não pode criar variaveis com o mesmo nodeme do procedimento")
             exit(1)
                                                 #classe, nome variavel, utilizada, atribuida, tipo
-        self.table[self.scope+"@"+node.value] = ["variavel", node.value, False, False, tipo]
+        self.table[self.scope+"@"+node.value] = ["variavel", node.value, False, False, tipo, 0]
 
     def funcao(self, node):
         self.prototipo(node.child[0])
@@ -63,7 +63,7 @@ class Semantica():
             exit(1)
                                 #classe, nome_func, argumentos, utilizada, tipo
         argumentos = self.declaracao_args(node.child[1])
-        self.table[nome_func] = ['funcao', nome_func, argumentos, False, tipo]
+        self.table[nome_func] = ['funcao', nome_func, argumentos, False, tipo, 0]
 
     def declaracao_args(self, node):
         if node == None:
@@ -73,7 +73,7 @@ class Semantica():
             nome = self.scope+"@"+node.child[0].value
             tipo = node.child[0].child[0].type
                                #classe, nome, utilizada, tipo, escopo
-            self.table[nome] = ["parametro", node.child[0].value, False, self.scope, tipo]
+            self.table[nome] = ["parametro", node.child[0].value, False, self.scope, tipo, 0]
             tipo_args.append(tipo)
             if len(node.child) == 2:
                 tipo_args = tipo_args + self.declaracao_args(node.child[1])
@@ -197,7 +197,7 @@ class Semantica():
             return "flutuante"
 
     def expressao_unaria(self, node):
-        self.expressao(node.child[0])
+        return self.expressao(node.child[0])
 
     def expressao_identificador(self, node):
         nome = self.scope+"@"+node.value
@@ -224,8 +224,8 @@ class Semantica():
         parametros_esperados = self.table[node.value][2]
 
         if len(argumentos) != len(parametros_esperados):
-            print ("Erro Semântico. Numero de parametros passados '" + str(qtde_parametros) +
-             "', numero de parametros esperado '" + str(len(self.table[node.value][1])))
+            print ("Erro Semântico. Numero de parametros passados '" + str(len(argumentos)) +
+             "', numero de parametros esperado '" + str(len(parametros_esperados)))
             exit(1)
 
         for i in range(len(parametros_esperados)):
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     code = open(sys.argv[1])
     s = Semantica(code.read())
 
-    # print_tree(s.tree)
+    print_tree(s.tree)
     # print (s.parser.tokens)
 
     # print("Tabela de Simbolos:", s.table)

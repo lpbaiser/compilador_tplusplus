@@ -10,21 +10,20 @@ from semantica import Semantica
 class Gen:
 	
     #def __init__(self, code, module, symbols, ee, passes, optz, debug):
-    def __init__(self, code, module):
+    def __init__(self, code, module, optz=False, debug=True):
         semantica = Semantica(code)
         self.module = module
-        # self.ee = ee
+        # self.ee = self.create_execution_engine()
         # self.passes = passes
-        # self.optimization = optz
+        self.optimization = optz
         self.builder = None
-        # self.func = None
+        self.funcao = None
         # self.symbols = symbols
-        # self.debug = debug
+        self.debug = debug
         self.scope = "global"
         self.table = semantica.table
         self.tree = semantica.tree
         self.gen_top(self.tree)
-
 
     def gen_top(self, node):
         if node == None:
@@ -38,51 +37,61 @@ class Gen:
     def gen_procedimento(self, node):
         if (node.child[0].type == "declaracao"):
             self.gen_declaracao(node.child[0])
-            print ("aki")
         if (node.child[0].type == "funcao"):
             self.scope = node.child[0].child[0].value 
             self.gen_funcao(node.child[0])
             self.scope = "global"
 
     def gen_declaracao(self, node):
-        print (node.child[0])
         nome = self.scope+"@"+node.value
-        tipo = self.gen_tipo(self.table[nome][4])
+        tipo = self.gen_tipo(node.child[0].type)
         if self.scope == "global":
-            referencia = ir.GlobalVariable(self.module, tipo, name = node.value)
+            ref_var = ir.GlobalVariable(self.module, tipo, name = node.value)
         else:
-            referencia = self.builder.alloca(tipo, name=node.value)
-        self.table[nome][5] = referencia
+            ref_var = self.builder.alloca(tipo, name=node.value)
+        self.table[nome][5] = ref_var
 
     def gen_funcao(self, node):
         self.gen_prototipo(node.child[0])
         self.gen_corpo(node.child[1])
 
     def gen_prototipo(self, node):
-        pass
+        tipo_retorno = self.gen_tipo(node.child[0].type)
+        argumentos = self.table[node.value][2]
+        self.scope = node.value
+
+        tipo_argumentos = ()
+        for arg in argumentos:
+            tipo_argumentos = tipo_argumentos + (self.gen_tipo(arg),)
+
+        tipo_funcao = ir.FunctionType(tipo_retorno,tipo_argumentos)
+        self.funcao = ir.Function(self.module,tipo_funcao,node.value)
+        self.table[node.value][4] = self.funcao
+        bloco = self.funcao.append_basic_block('BLOCO')
+        self.builder = ir.IRBuilder(bloco)
 
     def gen_corpo(self, node):
         if node == None:
             return
         elif len(node.child) == 1:
-            self.composicao(node.child[0])
+            self.gen_composicao(node.child[0])
         elif len(node.child) == 2:
-            self.composicao(node.child[0])
-            self.corpo(node.child[1])
+            self.gen_composicao(node.child[0])
+            self.gen_corpo(node.child[1])
 
     def gen_composicao(self, node):
         comp = node.child[0].type
-        if (comp == "atribuicao"):
+        if (comp == "atribuicao"): #ok
             self.gen_atribuicao(node.child[0])
-        elif (comp == "declaracao"):
+        elif (comp == "declaracao"): #ok
             self.gen_declaracao(node.child[0])
-        elif (comp == "chamada"):
+        elif (comp == "chamada"): #ok
             self.gen_chamada(node.child[0])
         elif (comp == "condicional"):
             self.gen_condicional(node.child[0])
         elif (comp == "repeticao"):
             self.gen_repeticao(node.child[0])
-        elif (comp == "retorna"):
+        elif (comp == "retorna"): #ok
             self.gen_retorna(node.child[0])
         elif (comp == "leia"):
             self.gen_leia(node.child[0])
@@ -90,35 +99,129 @@ class Gen:
             self.gen_escreva(node.child[0])
 
     def gen_atribuicao(self, node):
-        pass
-
-    def gen_declaracao(self, node):
-        pass
+        nome = self.scope+"@"+node.value
+        if nome not in self.table.keys():
+            nome = "global@"+node.value
+        ref_var = self.table[nome][5]
+        tipo_exp = self.gen_expressao(node.child[0])
+        self.builder.store(tipo_exp, ref_var)
 
     def gen_chamada(self, node):
-        pass
+        funcao = self.builder.load(self.table[node.value][4])
+        argumentos = self.gen_expressao_args(node.child[0])
+        return self.builder.call(funcao,argumentos,name="CHAMADA")
+
+    def gen_expressao_args(self, node):
+        if node == None:
+            return []
+        else:
+            argumentos = []
+            argumento = self.gen_expressao(node.child[0])
+            argumentos.append(argumento)
+            if len(node.child) == 2:
+                argumentos = argumentos + self.gen_expressao_args(node.child[1])
+            return argumentos
 
     def gen_condicional(self, node):
-        pass
+        self.gen_expressao_binaria(node.child[0])
+        self.gen_corpo(node.child[1])
+        if len(node.child) == 3:
+            self.gen_corpo(node.child[2])
 
     def gen_repeticao(self, node):
         pass
 
     def gen_retorna(self, node):
-        pass
+        ref_funcao = self.gen_expressao(node.child[0])
+        self.builder.ret(ref_funcao)
 
     def gen_escreva(self, node):
         pass
 
-    def gen_prototipo(self, node):
-        pass
+    def gen_expressao(self, node):
+        exp = node.child[0].type  
+        if (exp == "expressao_calculo"):
+           return self.gen_expressao_calculo(node.child[0])
+        elif (exp == "expressao_numerica"):
+            return self.gen_expressao_numerica(node.child[0])
+        elif (exp == "expressao_parenteses"):
+            return self.gen_expressao_parenteses(node.child[0])
+        elif (exp == "expressao_unaria"):
+            return self.gen_expressao_unaria(node.child[0])
+        elif (exp == "expressao_identificador"):
+            return self.gen_expressao_identificador(node.child[0])
+        elif (exp == "chamada"):
+            return self.gen_chamada(node.child[0])
 
+    def gen_expressao_calculo(self, node):
+        tipo1 = self.gen_expressao(node.child[0])
+        tipo2 = self.gen_expressao(node.child[1])
+
+        if node.value == "+":
+            ref = self.builder.fadd(tipo1, tipo2, name='ADD')
+        elif node.value == "-":
+            ref = self.builder.fsub(tipo1, tipo2, name='SUB')
+        elif node.value == "*":
+            ref = self.builder.fmul(tipo1, tipo2, name='MUL')
+        elif node.value == "/":
+            ref = self.builder.fdiv(tipo1, tipo2, name='DIV')
+        return ref
+
+    def gen_expressao_numerica(self, node):
+        return ir.Constant(self.gen_tipo(node.child[0].type), node.child[0].value)
+
+    def gen_expressao_parenteses(self, node):
+        return self.gen_expressao(node.child[0])
+
+    def gen_expressao_unaria(self, node):
+        ref_unaria = self.gen_expressao(node.child[0])
+        if node.value == "+":
+            return ref_unaria
+        elif node.value == "-":
+            return self.builder.fmul(ref_unaria, ir.Constant(ref_unaria.type, -1), name='MUL')
+
+    def gen_expressao_identificador(self, node):
+        nome = self.scope+"@"+node.value
+        if nome not in self.table.keys():
+            nome = "global@"+node.value
+        ref_var = self.table[nome][5]
+        return self.builder.load(ref_var)
+
+    def gen_expressao_binaria(self, node):
+        exp = node.child[0].type
+        if (exp == "expressao_binaria_com_parenteses"):
+            return self.gen_expressao_binaria_com_parenteses(node.child[0])
+        elif (exp == "expressao_binaria_sem_parenteses"):
+            return self.gen_expressao_binaria_sem_parenteses(node.child[0])
+
+    def gen_expressao_binaria_sem_parenteses(self, node):
+        tipo1 = self.gen_expressao(node.child[0])
+        tipo2 = self.gen_expressao(node.child[1])
+        print(tipo1)
+        print(tipo2)
+        simbolo = node.value
+        if simbolo != "=":
+            exp = self.builder.icmp_signed(node.value, tipo1, tipo2, 'cmptmp')
+        elif simbolo == "=":
+            exp = self.builder.icmp_signed("==", tipo1, tipo2, 'cmptmp')
+        return exp
+
+
+    def gen_expressao_binaria_com_parenteses(self, node):
+        self.gen_expressao_binaria(node.child[0])
 
     def gen_tipo(self, node):
-        if (node.child[0].type == "inteiro"):
+        if (node == "inteiro" or node == "num_inteiro"):
             return ir.IntType(32)
-        elif (node.child[0].type == "flutuante"):
+        elif (node == "flutuante" or node == "num_flutuante"):
             return ir.DoubleType()
+
+    def compile_ir(self):
+        self.mod = binding.parse_assembly(str(self.module))
+        self.mod.verify()
+        self.ee.add_module(self.mod)
+        self.ee.finalize_object()
+        return self.mod
 
     # def compile_ir(self):
     #     mod = binding.parse_assembly(str(self.module))
@@ -275,10 +378,12 @@ class Gen:
 if __name__ == '__main__':
     import sys
     code = open(sys.argv[1])
-    module = ir.Module('my_module')
+    module = ir.Module('module_tpp')
     gen = Gen(code.read(), module)
 
+    print(gen.table)
     print(gen.module)
+
 
     # print_tree(s.tree)
     # print (s.parser.tokens)
