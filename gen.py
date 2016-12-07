@@ -4,8 +4,10 @@
 # Autor: Leonardo Pontes Baiser
 #-------------------------------------------------------------------------
 
-from llvmlite import ir
+from llvmlite import ir, binding
 from semantica import Semantica
+from ctypes import CFUNCTYPE, c_int32
+import os
 
 class Gen:
 	
@@ -13,12 +15,20 @@ class Gen:
     def __init__(self, code, module, optz=False, debug=True):
         semantica = Semantica(code)
         self.module = module
-        # self.ee = self.create_execution_engine()
+
+        binding.initialize()
+        binding.initialize_native_target()
+        binding.initialize_native_asmprinter()
+        binding.load_library_permanently(os.getcwd() + '//funcoesC.so')
+        self.ee = self.create_execution_engine()
+
         # self.passes = passes
         self.optimization = optz
         self.builder = None
         self.funcao = None
         # self.symbols = symbols
+        self.leia = None
+        self.escreva = None
         self.debug = debug
         self.scope = "global"
         self.table = semantica.table
@@ -129,17 +139,44 @@ class Gen:
             self.gen_corpo(node.child[2])
 
     def gen_repeticao(self, node):
-        pass
+        repeticao_start = self.funcao.append_basic_block('LOOP')
+        repeticao_fim = self.funcao.append_basic_block('FIM_LOOP')
+        self.builder.branch(repeticao_start)
+        self.builder.position_at_start(repeticao_start)
+        self.gen_corpo(node.child[0])
+        condicao_stop = self.gen_expressao_binaria(node.child[1])
+        print(condicao_stop)
+        self.builder.cbranch(condicao_stop, repeticao_fim, repeticao_start)
+        self.builder.position_at_start(repeticao_fim)
 
     def gen_retorna(self, node):
         ref_funcao = self.gen_expressao(node.child[0])
         self.builder.ret(ref_funcao)
 
     def gen_escreva(self, node):
-        pass
+        escreve = ir.FunctionType(ir.VoidType(), [ir.IntType(32)])
+        self.escreva = ir.Function(self.module, escreve, 'ESCREVE')
+        exp = self.gen_expressao(node.child[0])
+        self.builder.call(self.escreva, [exp])
+        self.mod = self.compile_ir()
+        funcao_escreva = self.ee.get_function_address("ESCREVE")
+        funcao_c = CFUNCTYPE(c_int32)(funcao_escreva)
+        valor_retorno = funcao_c()
+
+    def gen_leia(self, node):
+        leitura = ir.FunctionType(ir.IntType(32), [])
+        self.leia = ir.Function(self.module, leitura, 'LEIA')
+        l = self.builder.call(self.leia, [])
+        resultado = ir.Constant(ir.DoubleType(), l)
+        self.builder.ret(resultado)
+        self.mod = self.compile_ir()
+        funcao_leia = self.ee.get_function_address("LEIA")
+        cfunc = CFUNCTYPE(c_int32)(funcao_leia)
+        valor_retorno = cfunc()
 
     def gen_expressao(self, node):
-        exp = node.child[0].type  
+
+        exp = node.child[0].type
         if (exp == "expressao_calculo"):
            return self.gen_expressao_calculo(node.child[0])
         elif (exp == "expressao_numerica"):
@@ -197,17 +234,16 @@ class Gen:
     def gen_expressao_binaria_sem_parenteses(self, node):
         tipo1 = self.gen_expressao(node.child[0])
         tipo2 = self.gen_expressao(node.child[1])
-        print(tipo1)
-        print(tipo2)
         simbolo = node.value
-        if simbolo != "=":
-            exp = self.builder.icmp_signed(node.value, tipo1, tipo2, 'cmptmp')
-        elif simbolo == "=":
+        if simbolo == "=":
             exp = self.builder.icmp_signed("==", tipo1, tipo2, 'cmptmp')
+        else:
+            exp = self.builder.icmp_signed(node.value, tipo1, tipo2, 'cmptmp')
         return exp
 
 
     def gen_expressao_binaria_com_parenteses(self, node):
+        print (node.child[0].child[0])
         self.gen_expressao_binaria(node.child[0])
 
     def gen_tipo(self, node):
