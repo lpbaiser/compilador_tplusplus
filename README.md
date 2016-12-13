@@ -1,6 +1,9 @@
 # Compilador t++
 Compilador para linguagem t++ 
 
+ 
+<a href="https://github.com/lpbaiser/compilador_tplusplus/blob/master/documenta%C3%A7%C3%A3o_tpp.pdf"/>Documentação</a>
+
 ### Como utilizar o lexer.py
 - Command line:
 	- python3 lexer.py exemplo.tpp
