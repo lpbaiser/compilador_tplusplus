@@ -297,9 +297,9 @@ if __name__ == '__main__':
     code = open(sys.argv[1])
     s = Semantica(code.read())
 
-    print_tree(s.tree)
+    # print_tree(s.tree)
     # print (s.parser.tokens)
 
     # print("Tabela de Simbolos:", s.table)
     # print_funcoes(s.table)
-    pprint.pprint(s.table, depth=3, width=500)
+    pprint.pprint(s.table, depth=3, width=300)

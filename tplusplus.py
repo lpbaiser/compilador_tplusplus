@@ -58,7 +58,7 @@ def main():
     while True:
         try:
             code = input('TPlusPlus => ')
-            # code = '/home/leonardo/Dropbox/Compiladores/compilador_tplusplus/exemplo.tpp'
+            # code = './exemplo.tpp'
             # code = 'exemplo.tpp'
         except KeyboardInterrupt:
             print()
